@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,8 +52,8 @@ import java.util.List;
  * Each stringer may be used to encode a single top level value. Instances of this class
  * are not thread safe. Although this class is nonfinal, it was not designed for
  * inheritance and should not be subclassed. In particular, self-use by overrideable
- * methods is not specified. See <i>Effective Java</i> Item 17,
- * "Design and Document or inheritance or else prohibit it" for further information.
+ * methods is not specified. See <i>Effective Java</i> Item 17, "Design and Document or
+ * inheritance or else prohibit it" for further information.
  */
 public class JSONStringer {
 
@@ -75,7 +75,7 @@ public class JSONStringer {
 		EMPTY_ARRAY,
 
 		/**
-		 * A array with at least one value requires a comma and newline before the next
+		 * An array with at least one value requires a comma and newline before the next
 		 * element.
 		 */
 		NONEMPTY_ARRAY,
@@ -242,7 +242,6 @@ public class JSONStringer {
 		if (value instanceof JSONArray) {
 			((JSONArray) value).writeTo(this);
 			return this;
-
 		}
 		else if (value instanceof JSONObject) {
 			((JSONObject) value).writeTo(this);

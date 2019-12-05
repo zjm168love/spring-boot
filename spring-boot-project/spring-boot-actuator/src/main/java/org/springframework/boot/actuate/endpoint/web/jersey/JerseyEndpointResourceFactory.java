@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,8 @@ package org.springframework.boot.actuate.endpoint.web.jersey;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,14 +41,18 @@ import org.glassfish.jersey.server.model.Resource.Builder;
 import reactor.core.publisher.Mono;
 
 import org.springframework.boot.actuate.endpoint.InvalidEndpointRequestException;
+import org.springframework.boot.actuate.endpoint.InvocationContext;
+import org.springframework.boot.actuate.endpoint.SecurityContext;
+import org.springframework.boot.actuate.endpoint.http.ApiVersion;
 import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
+import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint;
 import org.springframework.boot.actuate.endpoint.web.Link;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.boot.actuate.endpoint.web.WebOperation;
 import org.springframework.boot.actuate.endpoint.web.WebOperationRequestPredicate;
-import org.springframework.boot.endpoint.web.EndpointMapping;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -61,73 +67,67 @@ import org.springframework.util.StringUtils;
  */
 public class JerseyEndpointResourceFactory {
 
-	private final EndpointLinksResolver endpointLinksResolver = new EndpointLinksResolver();
-
 	/**
 	 * Creates {@link Resource Resources} for the operations of the given
 	 * {@code webEndpoints}.
 	 * @param endpointMapping the base mapping for all endpoints
 	 * @param endpoints the web endpoints
 	 * @param endpointMediaTypes media types consumed and produced by the endpoints
+	 * @param linksResolver resolver for determining links to available endpoints
+	 * @param shouldRegisterLinks should register links
 	 * @return the resources for the operations
 	 */
 	public Collection<Resource> createEndpointResources(EndpointMapping endpointMapping,
-			Collection<ExposableWebEndpoint> endpoints,
-			EndpointMediaTypes endpointMediaTypes) {
+			Collection<ExposableWebEndpoint> endpoints, EndpointMediaTypes endpointMediaTypes,
+			EndpointLinksResolver linksResolver, boolean shouldRegisterLinks) {
 		List<Resource> resources = new ArrayList<>();
 		endpoints.stream().flatMap((endpoint) -> endpoint.getOperations().stream())
-				.map((operation) -> createResource(endpointMapping, operation))
-				.forEach(resources::add);
-		if (StringUtils.hasText(endpointMapping.getPath())) {
-			Resource resource = createEndpointLinksResource(endpointMapping.getPath(),
-					endpoints, endpointMediaTypes);
+				.map((operation) -> createResource(endpointMapping, operation)).forEach(resources::add);
+		if (shouldRegisterLinks) {
+			Resource resource = createEndpointLinksResource(endpointMapping.getPath(), endpointMediaTypes,
+					linksResolver);
 			resources.add(resource);
 		}
 		return resources;
 	}
 
-	private Resource createResource(EndpointMapping endpointMapping,
-			WebOperation operation) {
+	private Resource createResource(EndpointMapping endpointMapping, WebOperation operation) {
 		WebOperationRequestPredicate requestPredicate = operation.getRequestPredicate();
-		Builder resourceBuilder = Resource.builder()
-				.path(endpointMapping.createSubPath(requestPredicate.getPath()));
+		String path = requestPredicate.getPath();
+		String matchAllRemainingPathSegmentsVariable = requestPredicate.getMatchAllRemainingPathSegmentsVariable();
+		if (matchAllRemainingPathSegmentsVariable != null) {
+			path = path.replace("{*" + matchAllRemainingPathSegmentsVariable + "}",
+					"{" + matchAllRemainingPathSegmentsVariable + ": .*}");
+		}
+		Builder resourceBuilder = Resource.builder().path(endpointMapping.createSubPath(path));
 		resourceBuilder.addMethod(requestPredicate.getHttpMethod().name())
-				.consumes(toStringArray(requestPredicate.getConsumes()))
-				.produces(toStringArray(requestPredicate.getProduces()))
-				.handledBy(new OperationInflector(operation,
-						!requestPredicate.getConsumes().isEmpty()));
+				.consumes(StringUtils.toStringArray(requestPredicate.getConsumes()))
+				.produces(StringUtils.toStringArray(requestPredicate.getProduces()))
+				.handledBy(new OperationInflector(operation, !requestPredicate.getConsumes().isEmpty()));
 		return resourceBuilder.build();
 	}
 
-	private String[] toStringArray(Collection<String> collection) {
-		return collection.toArray(new String[collection.size()]);
-	}
-
-	private Resource createEndpointLinksResource(String endpointPath,
-			Collection<ExposableWebEndpoint> endpoints,
-			EndpointMediaTypes endpointMediaTypes) {
+	private Resource createEndpointLinksResource(String endpointPath, EndpointMediaTypes endpointMediaTypes,
+			EndpointLinksResolver linksResolver) {
 		Builder resourceBuilder = Resource.builder().path(endpointPath);
-		resourceBuilder.addMethod("GET")
-				.produces(endpointMediaTypes.getProduced()
-						.toArray(new String[endpointMediaTypes.getProduced().size()]))
-				.handledBy(new EndpointLinksInflector(endpoints,
-						this.endpointLinksResolver));
+		resourceBuilder.addMethod("GET").produces(StringUtils.toStringArray(endpointMediaTypes.getProduced()))
+				.handledBy(new EndpointLinksInflector(linksResolver));
 		return resourceBuilder.build();
 	}
 
 	/**
 	 * {@link Inflector} to invoke the {@link WebOperation}.
 	 */
-	private static final class OperationInflector
-			implements Inflector<ContainerRequestContext, Object> {
+	private static final class OperationInflector implements Inflector<ContainerRequestContext, Object> {
+
+		private static final String PATH_SEPARATOR = AntPathMatcher.DEFAULT_PATH_SEPARATOR;
 
 		private static final List<Function<Object, Object>> BODY_CONVERTERS;
 
 		static {
 			List<Function<Object, Object>> converters = new ArrayList<>();
 			converters.add(new ResourceBodyConverter());
-			if (ClassUtils.isPresent("reactor.core.publisher.Mono",
-					OperationInflector.class.getClassLoader())) {
+			if (ClassUtils.isPresent("reactor.core.publisher.Mono", OperationInflector.class.getClassLoader())) {
 				converters.add(new MonoBodyConverter());
 			}
 			BODY_CONVERTERS = Collections.unmodifiableList(converters);
@@ -151,7 +151,10 @@ public class JerseyEndpointResourceFactory {
 			arguments.putAll(extractPathParameters(data));
 			arguments.putAll(extractQueryParameters(data));
 			try {
-				Object response = this.operation.invoke(arguments);
+				ApiVersion apiVersion = ApiVersion.fromHttpHeaders(data.getHeaders());
+				JerseySecurityContext securityContext = new JerseySecurityContext(data.getSecurityContext());
+				InvocationContext invocationContext = new InvocationContext(apiVersion, securityContext, arguments);
+				Object response = this.operation.invoke(invocationContext);
 				return convertToJaxRsResponse(response, data.getRequest().getMethod());
 			}
 			catch (InvalidEndpointRequestException ex) {
@@ -168,22 +171,36 @@ public class JerseyEndpointResourceFactory {
 			return (Map<String, Object>) entity;
 		}
 
-		private Map<String, Object> extractPathParameters(
-				ContainerRequestContext requestContext) {
-			return extract(requestContext.getUriInfo().getPathParameters());
+		private Map<String, Object> extractPathParameters(ContainerRequestContext requestContext) {
+			Map<String, Object> pathParameters = extract(requestContext.getUriInfo().getPathParameters());
+			String matchAllRemainingPathSegmentsVariable = this.operation.getRequestPredicate()
+					.getMatchAllRemainingPathSegmentsVariable();
+			if (matchAllRemainingPathSegmentsVariable != null) {
+				String remainingPathSegments = (String) pathParameters.get(matchAllRemainingPathSegmentsVariable);
+				pathParameters.put(matchAllRemainingPathSegmentsVariable, tokenizePathSegments(remainingPathSegments));
+			}
+			return pathParameters;
 		}
 
-		private Map<String, Object> extractQueryParameters(
-				ContainerRequestContext requestContext) {
+		private String[] tokenizePathSegments(String path) {
+			String[] segments = StringUtils.tokenizeToStringArray(path, PATH_SEPARATOR, false, true);
+			for (int i = 0; i < segments.length; i++) {
+				if (segments[i].contains("%")) {
+					segments[i] = StringUtils.uriDecode(segments[i], StandardCharsets.UTF_8);
+				}
+			}
+			return segments;
+		}
+
+		private Map<String, Object> extractQueryParameters(ContainerRequestContext requestContext) {
 			return extract(requestContext.getUriInfo().getQueryParameters());
 		}
 
-		private Map<String, Object> extract(
-				MultivaluedMap<String, String> multivaluedMap) {
+		private Map<String, Object> extract(MultivaluedMap<String, String> multivaluedMap) {
 			Map<String, Object> result = new HashMap<>();
 			multivaluedMap.forEach((name, values) -> {
 				if (!CollectionUtils.isEmpty(values)) {
-					result.put(name, values.size() == 1 ? values.get(0) : values);
+					result.put(name, (values.size() != 1) ? values : values.get(0));
 				}
 			});
 			return result;
@@ -192,18 +209,16 @@ public class JerseyEndpointResourceFactory {
 		private Response convertToJaxRsResponse(Object response, String httpMethod) {
 			if (response == null) {
 				boolean isGet = HttpMethod.GET.equals(httpMethod);
-				Status status = (isGet ? Status.NOT_FOUND : Status.NO_CONTENT);
+				Status status = isGet ? Status.NOT_FOUND : Status.NO_CONTENT;
 				return Response.status(status).build();
 			}
 			try {
 				if (!(response instanceof WebEndpointResponse)) {
-					return Response.status(Status.OK).entity(convertIfNecessary(response))
-							.build();
+					return Response.status(Status.OK).entity(convertIfNecessary(response)).build();
 				}
 				WebEndpointResponse<?> webEndpointResponse = (WebEndpointResponse<?>) response;
 				return Response.status(webEndpointResponse.getStatus())
-						.entity(convertIfNecessary(webEndpointResponse.getBody()))
-						.build();
+						.entity(convertIfNecessary(webEndpointResponse.getBody())).build();
 			}
 			catch (IOException ex) {
 				return Response.status(Status.INTERNAL_SERVER_ERROR).build();
@@ -258,24 +273,39 @@ public class JerseyEndpointResourceFactory {
 	/**
 	 * {@link Inflector} to for endpoint links.
 	 */
-	private static final class EndpointLinksInflector
-			implements Inflector<ContainerRequestContext, Response> {
-
-		private final Collection<ExposableWebEndpoint> endpoints;
+	private static final class EndpointLinksInflector implements Inflector<ContainerRequestContext, Response> {
 
 		private final EndpointLinksResolver linksResolver;
 
-		private EndpointLinksInflector(Collection<ExposableWebEndpoint> endpoints,
-				EndpointLinksResolver linksResolver) {
-			this.endpoints = endpoints;
+		private EndpointLinksInflector(EndpointLinksResolver linksResolver) {
 			this.linksResolver = linksResolver;
 		}
 
 		@Override
 		public Response apply(ContainerRequestContext request) {
-			Map<String, Link> links = this.linksResolver.resolveLinks(this.endpoints,
-					request.getUriInfo().getAbsolutePath().toString());
+			Map<String, Link> links = this.linksResolver
+					.resolveLinks(request.getUriInfo().getAbsolutePath().toString());
 			return Response.ok(Collections.singletonMap("_links", links)).build();
+		}
+
+	}
+
+	private static final class JerseySecurityContext implements SecurityContext {
+
+		private final javax.ws.rs.core.SecurityContext securityContext;
+
+		private JerseySecurityContext(javax.ws.rs.core.SecurityContext securityContext) {
+			this.securityContext = securityContext;
+		}
+
+		@Override
+		public Principal getPrincipal() {
+			return this.securityContext.getUserPrincipal();
+		}
+
+		@Override
+		public boolean isUserInRole(String role) {
+			return this.securityContext.isUserInRole(role);
 		}
 
 	}

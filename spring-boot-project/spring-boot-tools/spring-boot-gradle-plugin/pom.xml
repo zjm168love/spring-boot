@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -15,7 +15,13 @@
 		<main.basedir>${basedir}/../../..</main.basedir>
 		<gradle.executable>./gradlew</gradle.executable>
 		<gradle.task>build</gradle.task>
+		<refdocs.build.directory>${project.build.directory}/refdocs/</refdocs.build.directory>
 	</properties>
+	<scm>
+		<url>${git.url}</url>
+		<connection>${git.connection}</connection>
+		<developerConnection>${git.developerConnection}</developerConnection>
+	</scm>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -38,6 +44,24 @@
 	</dependencies>
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>com.googlecode.maven-download-plugin</groupId>
+				<artifactId>download-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>unpack-doc-resources</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>wget</goal>
+						</goals>
+						<configuration>
+							<url>${spring-doc-resources.url}</url>
+							<unpack>true</unpack>
+							<outputDirectory>${refdocs.build.directory}/asciidoc</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>
@@ -64,6 +88,44 @@
 						<configuration>
 							<includeScope>test</includeScope>
 							<outputDirectory>${project.build.directory}/dependencies/test</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-asciidoc-resources</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${refdocs.build.directory}/asciidoc</outputDirectory>
+							<resources>
+								<resource>
+									<directory>src/main/asciidoc</directory>
+									<filtering>false</filtering>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+					<execution>
+						<id>copy-gradle-resources</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${refdocs.build.directory}/gradle</outputDirectory>
+							<resources>
+								<resource>
+									<directory>src/main/gradle</directory>
+									<filtering>false</filtering>
+								</resource>
+							</resources>
 						</configuration>
 					</execution>
 				</executions>
@@ -223,10 +285,10 @@
 											<zipfileset
 												src="build/libs/${project.artifactId}-${project.version}-javadoc.jar"
 												prefix="api" />
-											<zipfileset dir="${project.build.directory}/generated-docs"
-												includes="index.html" prefix="reference/html" />
+											<zipfileset dir="${project.build.directory}/generated-docs/reference/html"
+												prefix="reference/html" />
 											<mappedresources>
-												<fileset dir="${project.build.directory}/generated-docs"
+												<fileset dir="${project.build.directory}/generated-docs/reference/pdf"
 													includes="index.pdf" />
 												<globmapper from="index.pdf"
 													to="reference/pdf/spring-boot-gradle-plugin-reference.pdf" />
@@ -248,7 +310,26 @@
 									<goal>process-asciidoc</goal>
 								</goals>
 								<configuration>
-									<backend>html</backend>
+									<backend>html5</backend>
+									<outputDirectory>${project.build.directory}/generated-docs/reference/html</outputDirectory>
+									<sourceHighlighter>highlight.js</sourceHighlighter>
+									<doctype>book</doctype>
+									<attributes>
+										<highlightjsdir>js/highlight</highlightjsdir>
+										<highlightjs-theme>github</highlightjs-theme>
+										<linkcss>true</linkcss>
+										<imagesdir>./images</imagesdir>
+										<icons>font</icons>
+										<stylesdir>css/</stylesdir>
+										<stylesheet>style.css</stylesheet>
+										<attribute-missing>warn</attribute-missing>
+									</attributes>
+									<logHandler>
+										<outputToConsole>true</outputToConsole>
+										<failIf>
+											<severity>DEBUG</severity>
+										</failIf>
+									</logHandler>
 								</configuration>
 							</execution>
 							<execution>
@@ -259,22 +340,25 @@
 								</goals>
 								<configuration>
 									<backend>pdf</backend>
+									<outputDirectory>${project.build.directory}/generated-docs/reference/pdf</outputDirectory>
 								</configuration>
 							</execution>
 						</executions>
 						<configuration>
+							<sourceDirectory>${refdocs.build.directory}/asciidoc</sourceDirectory>
 							<sourceDocumentName>index.adoc</sourceDocumentName>
 							<attributes>
 								<github-tag>${github-tag}</github-tag>
 								<version-type>${version-type}</version-type>
 								<version>${project.version}</version>
+								<dependency-management-plugin-version>${dependency-management-plugin.version}</dependency-management-plugin-version>
 							</attributes>
 						</configuration>
 						<dependencies>
 							<dependency>
-								<groupId>org.asciidoctor</groupId>
-								<artifactId>asciidoctorj-pdf</artifactId>
-								<version>1.5.0-alpha.11</version>
+								<groupId>io.spring.asciidoctor</groupId>
+								<artifactId>spring-asciidoctor-extensions-block-switch</artifactId>
+								<version>${spring-asciidoctor-extensions.version}</version>
 							</dependency>
 						</dependencies>
 					</plugin>
@@ -301,6 +385,15 @@
 					</plugin>
 				</plugins>
 			</build>
+		</profile>
+		<profile>
+			<id>java13</id>
+			<activation>
+				<jdk>13</jdk>
+			</activation>
+			<properties>
+				<gradle.task>assemble</gradle.task>
+			</properties>
 		</profile>
 	</profiles>
 </project>

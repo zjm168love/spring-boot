@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,10 @@ import org.springframework.util.Assert;
  *
  * @author Stephane Nicoll
  * @since 2.0.0
+ * @deprecated since 2.2.0 in favor of {@link HttpCodeStatusMapper} or
+ * {@link SimpleHttpCodeStatusMapper}
  */
+@Deprecated
 public class HealthStatusHttpMapper {
 
 	private Map<String, Integer> statusMapping = new HashMap<>();
@@ -42,8 +45,7 @@ public class HealthStatusHttpMapper {
 
 	private void setupDefaultStatusMapping() {
 		addStatusMapping(Status.DOWN, WebEndpointResponse.STATUS_SERVICE_UNAVAILABLE);
-		addStatusMapping(Status.OUT_OF_SERVICE,
-				WebEndpointResponse.STATUS_SERVICE_UNAVAILABLE);
+		addStatusMapping(Status.OUT_OF_SERVICE, WebEndpointResponse.STATUS_SERVICE_UNAVAILABLE);
 	}
 
 	/**
@@ -102,10 +104,9 @@ public class HealthStatusHttpMapper {
 	public int mapStatus(Status status) {
 		String code = getUniformValue(status.getCode());
 		if (code != null) {
-			return this.statusMapping.keySet().stream()
-					.filter((key) -> code.equals(getUniformValue(key)))
-					.map(this.statusMapping::get).findFirst()
-					.orElse(WebEndpointResponse.STATUS_OK);
+			return this.statusMapping.entrySet().stream()
+					.filter((entry) -> code.equals(getUniformValue(entry.getKey()))).map(Map.Entry::getValue)
+					.findFirst().orElse(WebEndpointResponse.STATUS_OK);
 		}
 		return WebEndpointResponse.STATUS_OK;
 	}

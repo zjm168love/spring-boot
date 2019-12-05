@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,6 @@ package org.springframework.boot.actuate.autoconfigure.web.server;
 
 import java.net.InetAddress;
 
-import org.springframework.boot.autoconfigure.security.SecurityPrerequisite;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -36,16 +35,17 @@ import org.springframework.util.StringUtils;
  * @see ServerProperties
  */
 @ConfigurationProperties(prefix = "management.server", ignoreUnknownFields = true)
-public class ManagementServerProperties implements SecurityPrerequisite {
+public class ManagementServerProperties {
 
 	/**
-	 * Management endpoint HTTP port. Use the same port as the application by default.
+	 * Management endpoint HTTP port (uses the same port as the application by default).
+	 * Configure a different port to use management-specific SSL.
 	 */
 	private Integer port;
 
 	/**
-	 * Network address that to which the management endpoints should bind to. Requires a
-	 * custom management.server.port.
+	 * Network address to which the management endpoints should bind. Requires a custom
+	 * management.server.port.
 	 */
 	private InetAddress address;
 
@@ -53,11 +53,6 @@ public class ManagementServerProperties implements SecurityPrerequisite {
 
 	@NestedConfigurationProperty
 	private Ssl ssl;
-
-	/**
-	 * Add the "X-Application-Context" HTTP header in each response.
-	 */
-	private boolean addApplicationContextHeader = false;
 
 	/**
 	 * Returns the management port or {@code null} if the
@@ -71,7 +66,8 @@ public class ManagementServerProperties implements SecurityPrerequisite {
 
 	/**
 	 * Sets the port of the management server, use {@code null} if the
-	 * {@link ServerProperties#getPort() server port} should be used. To disable use 0.
+	 * {@link ServerProperties#getPort() server port} should be used. Set to 0 to use a
+	 * random port or set to -1 to disable.
 	 * @param port the port
 	 */
 	public void setPort(Integer port) {
@@ -98,21 +94,13 @@ public class ManagementServerProperties implements SecurityPrerequisite {
 		return this.servlet;
 	}
 
-	public boolean getAddApplicationContextHeader() {
-		return this.addApplicationContextHeader;
-	}
-
-	public void setAddApplicationContextHeader(boolean addApplicationContextHeader) {
-		this.addApplicationContextHeader = addApplicationContextHeader;
-	}
-
 	/**
 	 * Servlet properties.
 	 */
 	public static class Servlet {
 
 		/**
-		 * Management endpoint context-path. For instance, '/management'. Requires a
+		 * Management endpoint context-path (for instance, `/management`). Requires a
 		 * custom management.server.port.
 		 */
 		private String contextPath = "";

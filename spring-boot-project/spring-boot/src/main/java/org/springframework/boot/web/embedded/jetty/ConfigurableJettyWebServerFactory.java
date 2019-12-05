@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,15 +18,17 @@ package org.springframework.boot.web.embedded.jetty;
 
 import org.eclipse.jetty.server.Server;
 
+import org.springframework.boot.web.server.ConfigurableWebServerFactory;
+
 /**
- * Web Server Factory configuration for Jetty-specific features.
+ * {@link ConfigurableWebServerFactory} for Jetty-specific features.
  *
  * @author Brian Clozel
  * @since 2.0.0
  * @see JettyServletWebServerFactory
  * @see JettyReactiveWebServerFactory
  */
-public interface ConfigurableJettyWebServerFactory {
+public interface ConfigurableJettyWebServerFactory extends ConfigurableWebServerFactory {
 
 	/**
 	 * Set the number of acceptor threads to use.

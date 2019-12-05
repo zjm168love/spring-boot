@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import reactor.core.publisher.Mono;
 
+import org.springframework.boot.actuate.web.mappings.HandlerMethodDescription;
 import org.springframework.boot.actuate.web.mappings.MappingDescriptionProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.Resource;
@@ -52,13 +53,11 @@ import org.springframework.web.util.pattern.PathPattern;
  * @author Andy Wilkinson
  * @since 2.0.0
  */
-public class DispatcherHandlersMappingDescriptionProvider
-		implements MappingDescriptionProvider {
+public class DispatcherHandlersMappingDescriptionProvider implements MappingDescriptionProvider {
 
 	private static final List<HandlerMappingDescriptionProvider<? extends HandlerMapping>> descriptionProviders = Arrays
 			.asList(new RequestMappingInfoHandlerMappingDescriptionProvider(),
-					new UrlHandlerMappingDescriptionProvider(),
-					new RouterFunctionMappingDescriptionProvider());
+					new UrlHandlerMappingDescriptionProvider(), new RouterFunctionMappingDescriptionProvider());
 
 	@Override
 	public String getMappingName() {
@@ -66,28 +65,22 @@ public class DispatcherHandlersMappingDescriptionProvider
 	}
 
 	@Override
-	public Map<String, List<DispatcherHandlerMappingDescription>> describeMappings(
-			ApplicationContext context) {
+	public Map<String, List<DispatcherHandlerMappingDescription>> describeMappings(ApplicationContext context) {
 		Map<String, List<DispatcherHandlerMappingDescription>> mappings = new HashMap<>();
-		context.getBeansOfType(DispatcherHandler.class).forEach(
-				(name, handler) -> mappings.put(name, describeMappings(handler)));
+		context.getBeansOfType(DispatcherHandler.class)
+				.forEach((name, handler) -> mappings.put(name, describeMappings(handler)));
 		return mappings;
 	}
 
-	private List<DispatcherHandlerMappingDescription> describeMappings(
-			DispatcherHandler dispatcherHandler) {
-		return dispatcherHandler.getHandlerMappings().stream().flatMap(this::describe)
-				.collect(Collectors.toList());
+	private List<DispatcherHandlerMappingDescription> describeMappings(DispatcherHandler dispatcherHandler) {
+		return dispatcherHandler.getHandlerMappings().stream().flatMap(this::describe).collect(Collectors.toList());
 	}
 
 	@SuppressWarnings("unchecked")
-	private <T extends HandlerMapping> Stream<DispatcherHandlerMappingDescription> describe(
-			T handlerMapping) {
+	private <T extends HandlerMapping> Stream<DispatcherHandlerMappingDescription> describe(T handlerMapping) {
 		for (HandlerMappingDescriptionProvider<?> descriptionProvider : descriptionProviders) {
 			if (descriptionProvider.getMappingClass().isInstance(handlerMapping)) {
-				return ((HandlerMappingDescriptionProvider<T>) descriptionProvider)
-						.describe(handlerMapping).stream();
-
+				return ((HandlerMappingDescriptionProvider<T>) descriptionProvider).describe(handlerMapping).stream();
 			}
 		}
 		return Stream.empty();
@@ -102,8 +95,7 @@ public class DispatcherHandlersMappingDescriptionProvider
 	}
 
 	private static final class RequestMappingInfoHandlerMappingDescriptionProvider
-			implements
-			HandlerMappingDescriptionProvider<RequestMappingInfoHandlerMapping> {
+			implements HandlerMappingDescriptionProvider<RequestMappingInfoHandlerMapping> {
 
 		@Override
 		public Class<RequestMappingInfoHandlerMapping> getMappingClass() {
@@ -111,18 +103,17 @@ public class DispatcherHandlersMappingDescriptionProvider
 		}
 
 		@Override
-		public List<DispatcherHandlerMappingDescription> describe(
-				RequestMappingInfoHandlerMapping handlerMapping) {
-			Map<RequestMappingInfo, HandlerMethod> handlerMethods = handlerMapping
-					.getHandlerMethods();
-			return handlerMethods.entrySet().stream().map(this::describe)
-					.collect(Collectors.toList());
+		public List<DispatcherHandlerMappingDescription> describe(RequestMappingInfoHandlerMapping handlerMapping) {
+			Map<RequestMappingInfo, HandlerMethod> handlerMethods = handlerMapping.getHandlerMethods();
+			return handlerMethods.entrySet().stream().map(this::describe).collect(Collectors.toList());
 		}
 
-		private DispatcherHandlerMappingDescription describe(
-				Entry<RequestMappingInfo, HandlerMethod> mapping) {
-			return new DispatcherHandlerMappingDescription(mapping.getKey().toString(),
-					mapping.getValue().toString());
+		private DispatcherHandlerMappingDescription describe(Entry<RequestMappingInfo, HandlerMethod> mapping) {
+			DispatcherHandlerMappingDetails handlerMapping = new DispatcherHandlerMappingDetails();
+			handlerMapping.setHandlerMethod(new HandlerMethodDescription(mapping.getValue()));
+			handlerMapping.setRequestMappingConditions(new RequestMappingConditionsDescription(mapping.getKey()));
+			return new DispatcherHandlerMappingDescription(mapping.getKey().toString(), mapping.getValue().toString(),
+					handlerMapping);
 		}
 
 	}
@@ -136,16 +127,13 @@ public class DispatcherHandlersMappingDescriptionProvider
 		}
 
 		@Override
-		public List<DispatcherHandlerMappingDescription> describe(
-				AbstractUrlHandlerMapping handlerMapping) {
-			return handlerMapping.getHandlerMap().entrySet().stream().map(this::describe)
-					.collect(Collectors.toList());
+		public List<DispatcherHandlerMappingDescription> describe(AbstractUrlHandlerMapping handlerMapping) {
+			return handlerMapping.getHandlerMap().entrySet().stream().map(this::describe).collect(Collectors.toList());
 		}
 
-		private DispatcherHandlerMappingDescription describe(
-				Entry<PathPattern, Object> mapping) {
-			return new DispatcherHandlerMappingDescription(
-					mapping.getKey().getPatternString(), mapping.getValue().toString());
+		private DispatcherHandlerMappingDescription describe(Entry<PathPattern, Object> mapping) {
+			return new DispatcherHandlerMappingDescription(mapping.getKey().getPatternString(),
+					mapping.getValue().toString(), null);
 		}
 
 	}
@@ -159,8 +147,7 @@ public class DispatcherHandlersMappingDescriptionProvider
 		}
 
 		@Override
-		public List<DispatcherHandlerMappingDescription> describe(
-				RouterFunctionMapping handlerMapping) {
+		public List<DispatcherHandlerMappingDescription> describe(RouterFunctionMapping handlerMapping) {
 			MappingDescriptionVisitor visitor = new MappingDescriptionVisitor();
 			RouterFunction<?> routerFunction = handlerMapping.getRouterFunction();
 			if (routerFunction != null) {
@@ -184,10 +171,11 @@ public class DispatcherHandlersMappingDescriptionProvider
 		}
 
 		@Override
-		public void route(RequestPredicate predicate,
-				HandlerFunction<?> handlerFunction) {
-			this.descriptions.add(new DispatcherHandlerMappingDescription(
-					predicate.toString(), handlerFunction.toString()));
+		public void route(RequestPredicate predicate, HandlerFunction<?> handlerFunction) {
+			DispatcherHandlerMappingDetails details = new DispatcherHandlerMappingDetails();
+			details.setHandlerFunction(new HandlerFunctionDescription(handlerFunction));
+			this.descriptions.add(
+					new DispatcherHandlerMappingDescription(predicate.toString(), handlerFunction.toString(), details));
 		}
 
 		@Override

@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
+import org.springframework.util.StringUtils;
 
 /**
  * Selects configuration classes for the management context configuration. Entries are
@@ -45,16 +46,14 @@ import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
  * @see ManagementContextConfiguration
  */
 @Order(Ordered.LOWEST_PRECEDENCE)
-class ManagementContextConfigurationImportSelector
-		implements DeferredImportSelector, BeanClassLoaderAware {
+class ManagementContextConfigurationImportSelector implements DeferredImportSelector, BeanClassLoaderAware {
 
 	private ClassLoader classLoader;
 
 	@Override
 	public String[] selectImports(AnnotationMetadata metadata) {
 		ManagementContextType contextType = (ManagementContextType) metadata
-				.getAnnotationAttributes(EnableManagementContext.class.getName())
-				.get("value");
+				.getAnnotationAttributes(EnableManagementContext.class.getName()).get("value");
 		// Find all management context configuration classes, filtering duplicates
 		List<ManagementConfiguration> configurations = getConfigurations();
 		OrderComparator.sort(configurations);
@@ -65,12 +64,11 @@ class ManagementContextConfigurationImportSelector
 				names.add(configuration.getClassName());
 			}
 		}
-		return names.toArray(new String[names.size()]);
+		return StringUtils.toStringArray(names);
 	}
 
 	private List<ManagementConfiguration> getConfigurations() {
-		SimpleMetadataReaderFactory readerFactory = new SimpleMetadataReaderFactory(
-				this.classLoader);
+		SimpleMetadataReaderFactory readerFactory = new SimpleMetadataReaderFactory(this.classLoader);
 		List<ManagementConfiguration> configurations = new ArrayList<>();
 		for (String className : loadFactoryNames()) {
 			addConfiguration(readerFactory, configurations, className);
@@ -85,14 +83,12 @@ class ManagementContextConfigurationImportSelector
 			configurations.add(new ManagementConfiguration(metadataReader));
 		}
 		catch (IOException ex) {
-			throw new RuntimeException(
-					"Failed to read annotation metadata for '" + className + "'", ex);
+			throw new RuntimeException("Failed to read annotation metadata for '" + className + "'", ex);
 		}
 	}
 
 	protected List<String> loadFactoryNames() {
-		return SpringFactoriesLoader
-				.loadFactoryNames(ManagementContextConfiguration.class, this.classLoader);
+		return SpringFactoriesLoader.loadFactoryNames(ManagementContextConfiguration.class, this.classLoader);
 	}
 
 	@Override
@@ -112,31 +108,26 @@ class ManagementContextConfigurationImportSelector
 		private final ManagementContextType contextType;
 
 		ManagementConfiguration(MetadataReader metadataReader) {
-			AnnotationMetadata annotationMetadata = metadataReader
-					.getAnnotationMetadata();
+			AnnotationMetadata annotationMetadata = metadataReader.getAnnotationMetadata();
 			this.order = readOrder(annotationMetadata);
 			this.className = metadataReader.getClassMetadata().getClassName();
 			this.contextType = readContextType(annotationMetadata);
 		}
 
-		private ManagementContextType readContextType(
-				AnnotationMetadata annotationMetadata) {
+		private ManagementContextType readContextType(AnnotationMetadata annotationMetadata) {
 			Map<String, Object> annotationAttributes = annotationMetadata
-					.getAnnotationAttributes(
-							ManagementContextConfiguration.class.getName());
-			return (annotationAttributes == null ? ManagementContextType.ANY
-					: (ManagementContextType) annotationAttributes.get("value"));
+					.getAnnotationAttributes(ManagementContextConfiguration.class.getName());
+			return (annotationAttributes != null) ? (ManagementContextType) annotationAttributes.get("value")
+					: ManagementContextType.ANY;
 		}
 
 		private int readOrder(AnnotationMetadata annotationMetadata) {
-			Map<String, Object> attributes = annotationMetadata
-					.getAnnotationAttributes(Order.class.getName());
-			Integer order = (attributes == null ? null
-					: (Integer) attributes.get("value"));
-			return (order == null ? Ordered.LOWEST_PRECEDENCE : order);
+			Map<String, Object> attributes = annotationMetadata.getAnnotationAttributes(Order.class.getName());
+			Integer order = (attributes != null) ? (Integer) attributes.get("value") : null;
+			return (order != null) ? order : Ordered.LOWEST_PRECEDENCE;
 		}
 
-		public String getClassName() {
+		String getClassName() {
 			return this.className;
 		}
 
@@ -145,7 +136,7 @@ class ManagementContextConfigurationImportSelector
 			return this.order;
 		}
 
-		public ManagementContextType getContextType() {
+		ManagementContextType getContextType() {
 			return this.contextType;
 		}
 

@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,8 +21,6 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.core.env.Environment;
-import org.springframework.util.StringUtils;
 
 /**
  * Configuration properties for JMX export of endpoints.
@@ -33,25 +31,12 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties("management.endpoints.jmx")
 public class JmxEndpointProperties {
 
-	/**
-	 * Endpoint IDs that should be exposed or '*' for all.
-	 */
-	private Set<String> expose = new LinkedHashSet<>();
-
-	/**
-	 * Endpoint IDs that should be excluded.
-	 */
-	private Set<String> exclude = new LinkedHashSet<>();
+	private final Exposure exposure = new Exposure();
 
 	/**
 	 * Endpoints JMX domain name. Fallback to 'spring.jmx.default-domain' if set.
 	 */
-	private String domain = "org.springframework.boot";
-
-	/**
-	 * Ensure that ObjectNames are modified in case of conflict.
-	 */
-	private boolean uniqueNames = false;
+	private String domain;
 
 	/**
 	 * Additional static properties to append to all ObjectNames of MBeans representing
@@ -59,27 +44,8 @@ public class JmxEndpointProperties {
 	 */
 	private final Properties staticNames = new Properties();
 
-	public JmxEndpointProperties(Environment environment) {
-		String defaultDomain = environment.getProperty("spring.jmx.default-domain");
-		if (StringUtils.hasText(defaultDomain)) {
-			this.domain = defaultDomain;
-		}
-	}
-
-	public Set<String> getExpose() {
-		return this.expose;
-	}
-
-	public void setExpose(Set<String> expose) {
-		this.expose = expose;
-	}
-
-	public Set<String> getExclude() {
-		return this.exclude;
-	}
-
-	public void setExclude(Set<String> exclude) {
-		this.exclude = exclude;
+	public Exposure getExposure() {
+		return this.exposure;
 	}
 
 	public String getDomain() {
@@ -90,16 +56,38 @@ public class JmxEndpointProperties {
 		this.domain = domain;
 	}
 
-	public boolean isUniqueNames() {
-		return this.uniqueNames;
-	}
-
-	public void setUniqueNames(boolean uniqueNames) {
-		this.uniqueNames = uniqueNames;
-	}
-
 	public Properties getStaticNames() {
 		return this.staticNames;
+	}
+
+	public static class Exposure {
+
+		/**
+		 * Endpoint IDs that should be included or '*' for all.
+		 */
+		private Set<String> include = new LinkedHashSet<>();
+
+		/**
+		 * Endpoint IDs that should be excluded or '*' for all.
+		 */
+		private Set<String> exclude = new LinkedHashSet<>();
+
+		public Set<String> getInclude() {
+			return this.include;
+		}
+
+		public void setInclude(Set<String> include) {
+			this.include = include;
+		}
+
+		public Set<String> getExclude() {
+			return this.exclude;
+		}
+
+		public void setExclude(Set<String> exclude) {
+			this.exclude = exclude;
+		}
+
 	}
 
 }

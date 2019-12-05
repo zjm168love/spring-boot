@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,11 +16,12 @@
 
 package org.springframework.boot.security.reactive;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import java.util.function.Supplier;
+
+import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.StaticApplicationContext;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -33,6 +34,9 @@ import org.springframework.web.server.WebHandler;
 import org.springframework.web.server.adapter.HttpWebHandlerAdapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -40,68 +44,54 @@ import static org.mockito.Mockito.mock;
  *
  * @author Madhura Bhave
  */
-public class ApplicationContextServerWebExchangeMatcherTests {
-
-	@Rule
-	public ExpectedException thrown = ExpectedException.none();
+class ApplicationContextServerWebExchangeMatcherTests {
 
 	@Test
-	public void createWhenContextClassIsNullShouldThrowException() {
-		this.thrown.expect(IllegalArgumentException.class);
-		this.thrown.expectMessage("Context class must not be null");
-		new TestApplicationContextServerWebExchangeMatcher<>(null);
+	void createWhenContextClassIsNullShouldThrowException() {
+		assertThatIllegalArgumentException()
+				.isThrownBy(() -> new TestApplicationContextServerWebExchangeMatcher<>(null))
+				.withMessageContaining("Context class must not be null");
 	}
 
 	@Test
-	public void matchesWhenContextClassIsApplicationContextShouldProvideContext() {
-		ServerWebExchange exchange = createHttpWebHandlerAdapter();
-		StaticApplicationContext context = (StaticApplicationContext) exchange
-				.getApplicationContext();
-		assertThat(new TestApplicationContextServerWebExchangeMatcher<>(
-				ApplicationContext.class).callMatchesAndReturnProvidedContext(exchange))
-						.isEqualTo(context);
+	void matchesWhenContextClassIsApplicationContextShouldProvideContext() {
+		ServerWebExchange exchange = createExchange();
+		StaticApplicationContext context = (StaticApplicationContext) exchange.getApplicationContext();
+		assertThat(new TestApplicationContextServerWebExchangeMatcher<>(ApplicationContext.class)
+				.callMatchesAndReturnProvidedContext(exchange).get()).isEqualTo(context);
 	}
 
 	@Test
-	public void matchesWhenContextClassIsExistingBeanShouldProvideBean() {
-		ServerWebExchange exchange = createHttpWebHandlerAdapter();
-		StaticApplicationContext context = (StaticApplicationContext) exchange
-				.getApplicationContext();
+	void matchesWhenContextClassIsExistingBeanShouldProvideBean() {
+		ServerWebExchange exchange = createExchange();
+		StaticApplicationContext context = (StaticApplicationContext) exchange.getApplicationContext();
 		context.registerSingleton("existingBean", ExistingBean.class);
-		assertThat(
-				new TestApplicationContextServerWebExchangeMatcher<>(ExistingBean.class)
-						.callMatchesAndReturnProvidedContext(exchange))
-								.isEqualTo(context.getBean(ExistingBean.class));
+		assertThat(new TestApplicationContextServerWebExchangeMatcher<>(ExistingBean.class)
+				.callMatchesAndReturnProvidedContext(exchange).get()).isEqualTo(context.getBean(ExistingBean.class));
 	}
 
 	@Test
-	public void matchesWhenContextClassIsNewBeanShouldProvideBean() {
-		ServerWebExchange exchange = createHttpWebHandlerAdapter();
-		StaticApplicationContext context = (StaticApplicationContext) exchange
-				.getApplicationContext();
-		context.registerSingleton("existingBean", ExistingBean.class);
-		assertThat(new TestApplicationContextServerWebExchangeMatcher<>(NewBean.class)
-				.callMatchesAndReturnProvidedContext(exchange).getBean())
-						.isEqualTo(context.getBean(ExistingBean.class));
-	}
-
-	@Test
-	public void matchesWhenContextIsNull() {
-		MockServerWebExchange exchange = MockServerWebExchange
-				.from(MockServerHttpRequest.get("/path").build());
-		this.thrown.expect(IllegalStateException.class);
-		this.thrown.expectMessage("No WebApplicationContext found.");
-		new TestApplicationContextServerWebExchangeMatcher<>(ExistingBean.class)
+	void matchesWhenContextClassIsMissingBeanShouldProvideException() {
+		ServerWebExchange exchange = createExchange();
+		Supplier<ExistingBean> supplier = new TestApplicationContextServerWebExchangeMatcher<>(ExistingBean.class)
 				.callMatchesAndReturnProvidedContext(exchange);
+		assertThatExceptionOfType(NoSuchBeanDefinitionException.class).isThrownBy(supplier::get);
 	}
 
-	private ServerWebExchange createHttpWebHandlerAdapter() {
+	@Test
+	void matchesWhenContextIsNull() {
+		MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/path").build());
+		assertThatIllegalStateException()
+				.isThrownBy(() -> new TestApplicationContextServerWebExchangeMatcher<>(ExistingBean.class)
+						.callMatchesAndReturnProvidedContext(exchange))
+				.withMessageContaining("No ApplicationContext found on ServerWebExchange.");
+	}
+
+	private ServerWebExchange createExchange() {
 		StaticApplicationContext context = new StaticApplicationContext();
-		TestHttpWebHandlerAdapter adapter = new TestHttpWebHandlerAdapter(
-				mock(WebHandler.class));
+		TestHttpWebHandlerAdapter adapter = new TestHttpWebHandlerAdapter(mock(WebHandler.class));
 		adapter.setApplicationContext(context);
-		return adapter.createExchange(MockServerHttpRequest.get("/path").build(),
-				new MockServerHttpResponse());
+		return adapter.createExchange(MockServerHttpRequest.get("/path").build(), new MockServerHttpResponse());
 	}
 
 	static class TestHttpWebHandlerAdapter extends HttpWebHandlerAdapter {
@@ -111,8 +101,7 @@ public class ApplicationContextServerWebExchangeMatcherTests {
 		}
 
 		@Override
-		protected ServerWebExchange createExchange(ServerHttpRequest request,
-				ServerHttpResponse response) {
+		protected ServerWebExchange createExchange(ServerHttpRequest request, ServerHttpResponse response) {
 			return super.createExchange(request, response);
 		}
 
@@ -130,7 +119,7 @@ public class ApplicationContextServerWebExchangeMatcherTests {
 			this.bean = bean;
 		}
 
-		public ExistingBean getBean() {
+		ExistingBean getBean() {
 			return this.bean;
 		}
 
@@ -139,24 +128,24 @@ public class ApplicationContextServerWebExchangeMatcherTests {
 	static class TestApplicationContextServerWebExchangeMatcher<C>
 			extends ApplicationContextServerWebExchangeMatcher<C> {
 
-		private C providedContext;
+		private Supplier<C> providedContext;
 
 		TestApplicationContextServerWebExchangeMatcher(Class<? extends C> context) {
 			super(context);
 		}
 
-		C callMatchesAndReturnProvidedContext(ServerWebExchange exchange) {
+		Supplier<C> callMatchesAndReturnProvidedContext(ServerWebExchange exchange) {
 			matches(exchange);
 			return getProvidedContext();
 		}
 
 		@Override
-		protected Mono<MatchResult> matches(ServerWebExchange exchange, C context) {
+		protected Mono<MatchResult> matches(ServerWebExchange exchange, Supplier<C> context) {
 			this.providedContext = context;
 			return MatchResult.match();
 		}
 
-		C getProvidedContext() {
+		Supplier<C> getProvidedContext() {
 			return this.providedContext;
 		}
 

@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 
 package org.springframework.boot.context.properties.source;
 
-import java.util.stream.IntStream;
+import java.util.Locale;
 
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName.Form;
 
@@ -41,11 +41,9 @@ final class SystemEnvironmentPropertyMapper implements PropertyMapper {
 		String name = convertName(configurationPropertyName);
 		String legacyName = convertLegacyName(configurationPropertyName);
 		if (name.equals(legacyName)) {
-			return new PropertyMapping[] {
-					new PropertyMapping(name, configurationPropertyName) };
+			return new PropertyMapping[] { new PropertyMapping(name, configurationPropertyName) };
 		}
-		return new PropertyMapping[] {
-				new PropertyMapping(name, configurationPropertyName),
+		return new PropertyMapping[] { new PropertyMapping(name, configurationPropertyName),
 				new PropertyMapping(legacyName, configurationPropertyName) };
 	}
 
@@ -60,8 +58,7 @@ final class SystemEnvironmentPropertyMapper implements PropertyMapper {
 
 	private ConfigurationPropertyName convertName(String propertySourceName) {
 		try {
-			return ConfigurationPropertyName.adapt(propertySourceName, '_',
-					this::processElementValue);
+			return ConfigurationPropertyName.adapt(propertySourceName, '_', this::processElementValue);
 		}
 		catch (Exception ex) {
 			return null;
@@ -78,7 +75,7 @@ final class SystemEnvironmentPropertyMapper implements PropertyMapper {
 			if (result.length() > 0) {
 				result.append("_");
 			}
-			result.append(name.getElement(i, Form.UNIFORM).toUpperCase());
+			result.append(name.getElement(i, Form.UNIFORM).toUpperCase(Locale.ENGLISH));
 		}
 		return result.toString();
 	}
@@ -95,18 +92,16 @@ final class SystemEnvironmentPropertyMapper implements PropertyMapper {
 	}
 
 	private Object convertLegacyNameElement(String element) {
-		return element.replace("-", "_").toUpperCase();
+		return element.replace('-', '_').toUpperCase(Locale.ENGLISH);
 	}
 
 	private CharSequence processElementValue(CharSequence value) {
-		String result = value.toString().toLowerCase();
-		return (isNumber(result) ? "[" + result + "]" : result);
+		String result = value.toString().toLowerCase(Locale.ENGLISH);
+		return isNumber(result) ? "[" + result + "]" : result;
 	}
 
 	private static boolean isNumber(String string) {
-		IntStream nonDigits = string.chars().filter((c) -> !Character.isDigit(c));
-		boolean hasNonDigit = nonDigits.findFirst().isPresent();
-		return !hasNonDigit;
+		return string.chars().allMatch(Character::isDigit);
 	}
 
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,88 +16,65 @@
 
 package org.springframework.boot.actuate.autoconfigure.metrics;
 
-import java.util.Collection;
-import java.util.Collections;
-
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.binder.MeterBinder;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.config.MeterFilter;
 
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
-import org.springframework.boot.util.LambdaSafe;
+import org.springframework.context.ApplicationContext;
 
 /**
- * {@link BeanPostProcessor} to apply {@link MeterRegistryCustomizer customizers},
- * {@link MeterFilter filters}, {@link MeterBinder binders} and {@link Metrics#addRegistry
- * global registration} to {@link MeterRegistry meter registries}. This post processor
- * intentionally skips {@link CompositeMeterRegistry} with the assumptions that the
- * registries it contains are beans and will be customized directly.
+ * {@link BeanPostProcessor} that delegates to a lazily created
+ * {@link MeterRegistryConfigurer} to post-process {@link MeterRegistry} beans.
  *
  * @author Jon Schneider
  * @author Phillip Webb
+ * @author Andy Wilkinson
  */
 class MeterRegistryPostProcessor implements BeanPostProcessor {
 
-	private final Collection<MeterRegistryCustomizer<?>> customizers;
+	private final ObjectProvider<MeterBinder> meterBinders;
 
-	private final Collection<MeterFilter> filters;
+	private final ObjectProvider<MeterFilter> meterFilters;
 
-	private final Collection<MeterBinder> binders;
+	private final ObjectProvider<MeterRegistryCustomizer<?>> meterRegistryCustomizers;
 
-	private final boolean addToGlobalRegistry;
+	private final ObjectProvider<MetricsProperties> metricsProperties;
 
-	MeterRegistryPostProcessor(Collection<MeterBinder> binders,
-			Collection<MeterFilter> filters,
-			Collection<MeterRegistryCustomizer<?>> customizers,
-			boolean addToGlobalRegistry) {
-		this.binders = (binders != null ? binders : Collections.emptyList());
-		this.filters = (filters != null ? filters : Collections.emptyList());
-		this.customizers = (customizers != null ? customizers : Collections.emptyList());
-		this.addToGlobalRegistry = addToGlobalRegistry;
+	private volatile MeterRegistryConfigurer configurer;
+
+	private final ApplicationContext applicationContext;
+
+	MeterRegistryPostProcessor(ObjectProvider<MeterBinder> meterBinders, ObjectProvider<MeterFilter> meterFilters,
+			ObjectProvider<MeterRegistryCustomizer<?>> meterRegistryCustomizers,
+			ObjectProvider<MetricsProperties> metricsProperties, ApplicationContext applicationContext) {
+		this.meterBinders = meterBinders;
+		this.meterFilters = meterFilters;
+		this.meterRegistryCustomizers = meterRegistryCustomizers;
+		this.metricsProperties = metricsProperties;
+		this.applicationContext = applicationContext;
 	}
 
 	@Override
-	public Object postProcessBeforeInitialization(Object bean, String beanName) {
-		return bean;
-	}
-
-	@Override
-	public Object postProcessAfterInitialization(Object bean, String beanName) {
+	public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
 		if (bean instanceof MeterRegistry) {
-			postProcess((MeterRegistry) bean);
+			getConfigurer().configure((MeterRegistry) bean);
 		}
 		return bean;
 	}
 
-	private void postProcess(MeterRegistry registry) {
-		if (registry instanceof CompositeMeterRegistry) {
-			return;
+	private MeterRegistryConfigurer getConfigurer() {
+		if (this.configurer == null) {
+			boolean hasCompositeMeterRegistry = this.applicationContext
+					.getBeanNamesForType(CompositeMeterRegistry.class, false, false).length != 0;
+			this.configurer = new MeterRegistryConfigurer(this.meterRegistryCustomizers, this.meterFilters,
+					this.meterBinders, this.metricsProperties.getObject().isUseGlobalRegistry(),
+					hasCompositeMeterRegistry);
 		}
-		// Customizers must be applied before binders, as they may add custom tags or
-		// alter timer or summary configuration.
-		customize(registry);
-		addFilters(registry);
-		addBinders(registry);
-		if (this.addToGlobalRegistry && registry != Metrics.globalRegistry) {
-			Metrics.addRegistry(registry);
-		}
-	}
-
-	@SuppressWarnings("unchecked")
-	private void customize(MeterRegistry registry) {
-		LambdaSafe.callbacks(MeterRegistryCustomizer.class, this.customizers, registry)
-				.withLogger(MeterRegistryPostProcessor.class)
-				.invoke((customizer) -> customizer.customize(registry));
-	}
-
-	private void addFilters(MeterRegistry registry) {
-		this.filters.forEach(registry.config()::meterFilter);
-	}
-
-	private void addBinders(MeterRegistry registry) {
-		this.binders.forEach((binder) -> binder.bindTo(registry));
+		return this.configurer;
 	}
 
 }

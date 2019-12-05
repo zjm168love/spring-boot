@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +16,10 @@
 
 package org.springframework.boot.security.servlet;
 
+import java.util.function.Supplier;
+
 import javax.servlet.http.HttpServletRequest;
 
-import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -32,10 +33,9 @@ import org.springframework.web.context.support.WebApplicationContextUtils;
  * {@link AutowireCapableBeanFactory#createBean(Class, int, boolean) create a new bean}
  * that is autowired in the usual way.
  *
- * @param <C> The type of the context that the match method actually needs to use. Can be
- * an {@link ApplicationContext}, a class of an {@link ApplicationContext#getBean(Class)
- * existing bean} or a custom type that will be
- * {@link AutowireCapableBeanFactory#createBean(Class, int, boolean) created} on demand.
+ * @param <C> the type of the context that the match method actually needs to use. Can be
+ * an {@link ApplicationContext} or a class of an {@link ApplicationContext#getBean(Class)
+ * existing bean}.
  * @author Phillip Webb
  * @since 2.0.0
  */
@@ -43,9 +43,9 @@ public abstract class ApplicationContextRequestMatcher<C> implements RequestMatc
 
 	private final Class<? extends C> contextClass;
 
-	private volatile C context;
+	private volatile boolean initialized;
 
-	private final Object contextLock = new Object();
+	private final Object initializeLock = new Object();
 
 	public ApplicationContextRequestMatcher(Class<? extends C> contextClass) {
 		Assert.notNull(contextClass, "Context class must not be null");
@@ -54,51 +54,61 @@ public abstract class ApplicationContextRequestMatcher<C> implements RequestMatc
 
 	@Override
 	public final boolean matches(HttpServletRequest request) {
-		return matches(request, getContext(request));
+		WebApplicationContext webApplicationContext = WebApplicationContextUtils
+				.getRequiredWebApplicationContext(request.getServletContext());
+		if (ignoreApplicationContext(webApplicationContext)) {
+			return false;
+		}
+		Supplier<C> context = () -> getContext(webApplicationContext);
+		if (!this.initialized) {
+			synchronized (this.initializeLock) {
+				if (!this.initialized) {
+					initialized(context);
+					this.initialized = true;
+				}
+			}
+		}
+		return matches(request, context);
+	}
+
+	@SuppressWarnings("unchecked")
+	private C getContext(WebApplicationContext webApplicationContext) {
+		if (this.contextClass.isInstance(webApplicationContext)) {
+			return (C) webApplicationContext;
+		}
+		return webApplicationContext.getBean(this.contextClass);
+	}
+
+	/**
+	 * Returns if the {@link WebApplicationContext} should be ignored and not used for
+	 * matching. If this method returns {@code true} then the context will not be used and
+	 * the {@link #matches(HttpServletRequest) matches} method will return {@code false}.
+	 * @param webApplicationContext the candidate web application context
+	 * @return if the application context should be ignored
+	 * @since 2.1.8
+	 */
+	protected boolean ignoreApplicationContext(WebApplicationContext webApplicationContext) {
+		return false;
+	}
+
+	/**
+	 * Method that can be implemented by subclasses that wish to initialize items the
+	 * first time that the matcher is called. This method will be called only once and
+	 * only if {@link #ignoreApplicationContext(WebApplicationContext)} returns
+	 * {@code false}. Note that the supplied context will be based on the
+	 * <strong>first</strong> request sent to the matcher.
+	 * @param context a supplier for the initialized context (may throw an exception)
+	 * @see #ignoreApplicationContext(WebApplicationContext)
+	 */
+	protected void initialized(Supplier<C> context) {
 	}
 
 	/**
 	 * Decides whether the rule implemented by the strategy matches the supplied request.
 	 * @param request the source request
-	 * @param context the context instance
+	 * @param context a supplier for the initialized context (may throw an exception)
 	 * @return if the request matches
 	 */
-	protected abstract boolean matches(HttpServletRequest request, C context);
-
-	private C getContext(HttpServletRequest request) {
-		if (this.context == null) {
-			synchronized (this.contextLock) {
-				if (this.context == null) {
-					this.context = createContext(request);
-					initialized(this.context);
-				}
-			}
-		}
-		return this.context;
-	}
-
-	/**
-	 * Called once the context has been initialized.
-	 * @param context the initialized context
-	 */
-	protected void initialized(C context) {
-	}
-
-	@SuppressWarnings("unchecked")
-	private C createContext(HttpServletRequest request) {
-		WebApplicationContext context = WebApplicationContextUtils
-				.getRequiredWebApplicationContext(request.getServletContext());
-		if (this.contextClass.isInstance(context)) {
-			return (C) context;
-		}
-		try {
-			return context.getBean(this.contextClass);
-		}
-		catch (NoSuchBeanDefinitionException ex) {
-			return (C) context.getAutowireCapableBeanFactory().createBean(
-					this.contextClass, AutowireCapableBeanFactory.AUTOWIRE_CONSTRUCTOR,
-					false);
-		}
-	}
+	protected abstract boolean matches(HttpServletRequest request, Supplier<C> context);
 
 }

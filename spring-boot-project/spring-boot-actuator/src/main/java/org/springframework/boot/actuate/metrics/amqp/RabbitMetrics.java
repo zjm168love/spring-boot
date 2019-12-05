@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,29 +37,22 @@ public class RabbitMetrics implements MeterBinder {
 
 	private final Iterable<Tag> tags;
 
-	private final String name;
-
 	private final ConnectionFactory connectionFactory;
 
 	/**
 	 * Create a new meter binder recording the specified {@link ConnectionFactory}.
 	 * @param connectionFactory the {@link ConnectionFactory} to instrument
-	 * @param name the name prefix of the metrics
 	 * @param tags tags to apply to all recorded metrics
 	 */
-	public RabbitMetrics(ConnectionFactory connectionFactory, String name,
-			Iterable<Tag> tags) {
+	public RabbitMetrics(ConnectionFactory connectionFactory, Iterable<Tag> tags) {
 		Assert.notNull(connectionFactory, "ConnectionFactory must not be null");
-		Assert.notNull(name, "Name must not be null");
 		this.connectionFactory = connectionFactory;
-		this.name = name;
-		this.tags = (tags != null ? tags : Collections.emptyList());
+		this.tags = (tags != null) ? tags : Collections.emptyList();
 	}
 
 	@Override
 	public void bindTo(MeterRegistry registry) {
-		this.connectionFactory.setMetricsCollector(
-				new MicrometerMetricsCollector(registry, this.name, this.tags));
+		this.connectionFactory.setMetricsCollector(new MicrometerMetricsCollector(registry, "rabbitmq", this.tags));
 	}
 
 }

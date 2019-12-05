@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
@@ -60,8 +61,7 @@ import org.springframework.util.Assert;
  * @author Madhura Bhave
  * @since 2.0.0
  */
-public class ApplicationPidFileWriter
-		implements ApplicationListener<SpringApplicationEvent>, Ordered {
+public class ApplicationPidFileWriter implements ApplicationListener<SpringApplicationEvent>, Ordered {
 
 	private static final Log logger = LogFactory.getLog(ApplicationPidFileWriter.class);
 
@@ -127,27 +127,23 @@ public class ApplicationPidFileWriter
 	 * {@link Environment}.
 	 * @param triggerEventType the trigger event type
 	 */
-	public void setTriggerEventType(
-			Class<? extends SpringApplicationEvent> triggerEventType) {
+	public void setTriggerEventType(Class<? extends SpringApplicationEvent> triggerEventType) {
 		Assert.notNull(triggerEventType, "Trigger event type must not be null");
 		this.triggerEventType = triggerEventType;
 	}
 
 	@Override
 	public void onApplicationEvent(SpringApplicationEvent event) {
-		if (this.triggerEventType.isInstance(event)) {
-			if (created.compareAndSet(false, true)) {
-				try {
-					writePidFile(event);
+		if (this.triggerEventType.isInstance(event) && created.compareAndSet(false, true)) {
+			try {
+				writePidFile(event);
+			}
+			catch (Exception ex) {
+				String message = String.format("Cannot create pid file %s", this.file);
+				if (failOnWriteError(event)) {
+					throw new IllegalStateException(message, ex);
 				}
-				catch (Exception ex) {
-					String message = String.format("Cannot create pid file %s",
-							this.file);
-					if (failOnWriteError(event)) {
-						throw new IllegalStateException(message, ex);
-					}
-					logger.warn(message, ex);
-				}
+				logger.warn(message, ex);
 			}
 		}
 	}
@@ -164,7 +160,7 @@ public class ApplicationPidFileWriter
 
 	private boolean failOnWriteError(SpringApplicationEvent event) {
 		String value = getProperty(event, FAIL_ON_WRITE_ERROR_PROPERTIES);
-		return (value == null ? false : Boolean.parseBoolean(value));
+		return Boolean.parseBoolean(value);
 	}
 
 	private String getProperty(SpringApplicationEvent event, List<Property> candidates) {
@@ -230,12 +226,10 @@ public class ApplicationPidFileWriter
 				return ((ApplicationEnvironmentPreparedEvent) event).getEnvironment();
 			}
 			if (event instanceof ApplicationPreparedEvent) {
-				return ((ApplicationPreparedEvent) event).getApplicationContext()
-						.getEnvironment();
+				return ((ApplicationPreparedEvent) event).getApplicationContext().getEnvironment();
 			}
 			if (event instanceof ApplicationReadyEvent) {
-				return ((ApplicationReadyEvent) event).getApplicationContext()
-						.getEnvironment();
+				return ((ApplicationReadyEvent) event).getApplicationContext().getEnvironment();
 			}
 			return null;
 		}
@@ -250,7 +244,7 @@ public class ApplicationPidFileWriter
 		private final String[] properties;
 
 		SystemProperty(String name) {
-			this.properties = new String[] { name.toUpperCase(), name.toLowerCase() };
+			this.properties = new String[] { name.toUpperCase(Locale.ENGLISH), name.toLowerCase(Locale.ENGLISH) };
 		}
 
 		@Override

@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,8 @@ import io.micrometer.statsd.StatsdFlavor;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * {@link ConfigurationProperties} for configuring StatsD metrics export.
+ * {@link ConfigurationProperties @ConfigurationProperties} for configuring StatsD metrics
+ * export.
  *
  * @author Jon Schneider
  * @author Stephane Nicoll
@@ -33,9 +34,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class StatsdProperties {
 
 	/**
-	 * Export metrics to StatsD.
+	 * Whether exporting of metrics to StatsD is enabled.
 	 */
-	private Boolean enabled;
+	private boolean enabled = true;
 
 	/**
 	 * StatsD line protocol to use.
@@ -59,20 +60,21 @@ public class StatsdProperties {
 
 	/**
 	 * How often gauges will be polled. When a gauge is polled, its value is recalculated
-	 * and if the value has changed, it is sent to the StatsD server.
+	 * and if the value has changed (or publishUnchangedMeters is true), it is sent to the
+	 * StatsD server.
 	 */
 	private Duration pollingFrequency = Duration.ofSeconds(10);
 
 	/**
-	 * Maximum size of the queue of items waiting to be sent to the StatsD server.
+	 * Whether to send unchanged meters to the StatsD server.
 	 */
-	private Integer queueSize = Integer.MAX_VALUE;
+	private boolean publishUnchangedMeters = true;
 
-	public Boolean getEnabled() {
+	public boolean isEnabled() {
 		return this.enabled;
 	}
 
-	public void setEnabled(Boolean enabled) {
+	public void setEnabled(boolean enabled) {
 		this.enabled = enabled;
 	}
 
@@ -116,12 +118,12 @@ public class StatsdProperties {
 		this.pollingFrequency = pollingFrequency;
 	}
 
-	public Integer getQueueSize() {
-		return this.queueSize;
+	public boolean isPublishUnchangedMeters() {
+		return this.publishUnchangedMeters;
 	}
 
-	public void setQueueSize(Integer queueSize) {
-		this.queueSize = queueSize;
+	public void setPublishUnchangedMeters(boolean publishUnchangedMeters) {
+		this.publishUnchangedMeters = publishUnchangedMeters;
 	}
 
 }

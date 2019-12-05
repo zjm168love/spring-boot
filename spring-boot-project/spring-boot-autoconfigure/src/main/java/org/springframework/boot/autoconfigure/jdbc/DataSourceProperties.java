@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,11 +32,8 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.boot.jdbc.DataSourceInitializationMode;
 import org.springframework.boot.jdbc.DatabaseDriver;
 import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
-import org.springframework.context.EnvironmentAware;
-import org.springframework.core.env.Environment;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
-import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -50,12 +47,9 @@ import org.springframework.util.StringUtils;
  * @since 1.1.0
  */
 @ConfigurationProperties(prefix = "spring.datasource")
-public class DataSourceProperties
-		implements BeanClassLoaderAware, EnvironmentAware, InitializingBean {
+public class DataSourceProperties implements BeanClassLoaderAware, InitializingBean {
 
 	private ClassLoader classLoader;
-
-	private Environment environment;
 
 	/**
 	 * Name of the datasource. Default to "testdb" when using an embedded database.
@@ -79,7 +73,7 @@ public class DataSourceProperties
 	private String driverClassName;
 
 	/**
-	 * JDBC url of the database.
+	 * JDBC URL of the database.
 	 */
 	private String url;
 
@@ -100,7 +94,7 @@ public class DataSourceProperties
 	private String jndiName;
 
 	/**
-	 * Initialize the datasource using available DDL and DML scripts.
+	 * Initialize the datasource with available DDL and DML scripts.
 	 */
 	private DataSourceInitializationMode initializationMode = DataSourceInitializationMode.EMBEDDED;
 
@@ -116,7 +110,7 @@ public class DataSourceProperties
 	private List<String> schema;
 
 	/**
-	 * User of the database to execute DDL scripts (if different).
+	 * Username of the database to execute DDL scripts (if different).
 	 */
 	private String schemaUsername;
 
@@ -131,12 +125,12 @@ public class DataSourceProperties
 	private List<String> data;
 
 	/**
-	 * Username of the database to execute DML scripts.
+	 * Username of the database to execute DML scripts (if different).
 	 */
 	private String dataUsername;
 
 	/**
-	 * Password of the database to execute DML scripts.
+	 * Password of the database to execute DML scripts (if different).
 	 */
 	private String dataPassword;
 
@@ -167,14 +161,8 @@ public class DataSourceProperties
 	}
 
 	@Override
-	public void setEnvironment(Environment environment) {
-		this.environment = environment;
-	}
-
-	@Override
 	public void afterPropertiesSet() throws Exception {
-		this.embeddedDatabaseConnection = EmbeddedDatabaseConnection
-				.get(this.classLoader);
+		this.embeddedDatabaseConnection = EmbeddedDatabaseConnection.get(this.classLoader);
 	}
 
 	/**
@@ -183,9 +171,8 @@ public class DataSourceProperties
 	 * this instance
 	 */
 	public DataSourceBuilder<?> initializeDataSourceBuilder() {
-		return DataSourceBuilder.create(getClassLoader()).type(getType())
-				.driverClassName(determineDriverClassName()).url(determineUrl())
-				.username(determineUsername()).password(determinePassword());
+		return DataSourceBuilder.create(getClassLoader()).type(getType()).driverClassName(determineDriverClassName())
+				.url(determineUrl()).username(determineUsername()).password(determinePassword());
 	}
 
 	public String getName() {
@@ -232,8 +219,7 @@ public class DataSourceProperties
 	 */
 	public String determineDriverClassName() {
 		if (StringUtils.hasText(this.driverClassName)) {
-			Assert.state(driverClassIsLoadable(),
-					() -> "Cannot load driver class: " + this.driverClassName);
+			Assert.state(driverClassIsLoadable(), () -> "Cannot load driver class: " + this.driverClassName);
 			return this.driverClassName;
 		}
 		String driverClassName = null;
@@ -244,8 +230,8 @@ public class DataSourceProperties
 			driverClassName = this.embeddedDatabaseConnection.getDriverClassName();
 		}
 		if (!StringUtils.hasText(driverClassName)) {
-			throw new DataSourceBeanCreationException(this.embeddedDatabaseConnection,
-					this.environment, "driver class");
+			throw new DataSourceBeanCreationException("Failed to determine a suitable driver class", this,
+					this.embeddedDatabaseConnection);
 		}
 		return driverClassName;
 	}
@@ -287,11 +273,10 @@ public class DataSourceProperties
 			return this.url;
 		}
 		String databaseName = determineDatabaseName();
-		String url = (databaseName == null ? null
-				: this.embeddedDatabaseConnection.getUrl(databaseName));
+		String url = (databaseName != null) ? this.embeddedDatabaseConnection.getUrl(databaseName) : null;
 		if (!StringUtils.hasText(url)) {
-			throw new DataSourceBeanCreationException(this.embeddedDatabaseConnection,
-					this.environment, "url");
+			throw new DataSourceBeanCreationException("Failed to determine suitable jdbc url", this,
+					this.embeddedDatabaseConnection);
 		}
 		return url;
 	}
@@ -522,35 +507,23 @@ public class DataSourceProperties
 
 	static class DataSourceBeanCreationException extends BeanCreationException {
 
-		DataSourceBeanCreationException(EmbeddedDatabaseConnection connection,
-				Environment environment, String property) {
-			super(getMessage(connection, environment, property));
+		private final DataSourceProperties properties;
+
+		private final EmbeddedDatabaseConnection connection;
+
+		DataSourceBeanCreationException(String message, DataSourceProperties properties,
+				EmbeddedDatabaseConnection connection) {
+			super(message);
+			this.properties = properties;
+			this.connection = connection;
 		}
 
-		private static String getMessage(EmbeddedDatabaseConnection connection,
-				Environment environment, String property) {
-			StringBuilder message = new StringBuilder();
-			message.append("Cannot determine embedded database " + property
-					+ " for database type " + connection + ". ");
-			message.append("If you want an embedded database please put a supported "
-					+ "one on the classpath. ");
-			message.append("If you have database settings to be loaded from a "
-					+ "particular profile you may need to active it");
-			if (environment != null) {
-				String[] profiles = environment.getActiveProfiles();
-				if (ObjectUtils.isEmpty(profiles)) {
-					message.append(" (no profiles are currently active)");
-				}
-				else {
-					message.append(" (the profiles \""
-							+ StringUtils.arrayToCommaDelimitedString(
-									environment.getActiveProfiles())
-							+ "\" are currently active)");
+		DataSourceProperties getProperties() {
+			return this.properties;
+		}
 
-				}
-			}
-			message.append(".");
-			return message.toString();
+		EmbeddedDatabaseConnection getConnection() {
+			return this.connection;
 		}
 
 	}

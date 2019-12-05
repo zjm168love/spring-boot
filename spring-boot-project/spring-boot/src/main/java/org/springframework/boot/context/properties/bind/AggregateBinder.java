@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@ package org.springframework.boot.context.properties.bind;
 
 import java.util.function.Supplier;
 
+import org.springframework.boot.context.properties.bind.Binder.Context;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
 
@@ -30,9 +31,9 @@ import org.springframework.boot.context.properties.source.ConfigurationPropertyS
  */
 abstract class AggregateBinder<T> {
 
-	private final BindContext context;
+	private final Context context;
 
-	AggregateBinder(BindContext context) {
+	AggregateBinder(Context context) {
 		this.context = context;
 	}
 
@@ -41,8 +42,7 @@ abstract class AggregateBinder<T> {
 	 * @param source the configuration property source or {@code null} for all sources.
 	 * @return if recursive binding is supported
 	 */
-	protected abstract boolean isAllowRecursiveBinding(
-			ConfigurationPropertySource source);
+	protected abstract boolean isAllowRecursiveBinding(ConfigurationPropertySource source);
 
 	/**
 	 * Perform binding for the aggregate.
@@ -52,14 +52,13 @@ abstract class AggregateBinder<T> {
 	 * @return the bound aggregate or null
 	 */
 	@SuppressWarnings("unchecked")
-	public final Object bind(ConfigurationPropertyName name, Bindable<?> target,
-			AggregateElementBinder elementBinder) {
+	final Object bind(ConfigurationPropertyName name, Bindable<?> target, AggregateElementBinder elementBinder) {
 		Object result = bindAggregate(name, target, elementBinder);
 		Supplier<?> value = target.getValue();
-		if (result == null || value == null || value.get() == null) {
+		if (result == null || value == null) {
 			return result;
 		}
-		return merge((T) value.get(), (T) result);
+		return merge((Supplier<T>) value, (T) result);
 	}
 
 	/**
@@ -69,28 +68,29 @@ abstract class AggregateBinder<T> {
 	 * @param elementBinder an element binder
 	 * @return the bound result
 	 */
-	protected abstract Object bindAggregate(ConfigurationPropertyName name,
-			Bindable<?> target, AggregateElementBinder elementBinder);
+	protected abstract Object bindAggregate(ConfigurationPropertyName name, Bindable<?> target,
+			AggregateElementBinder elementBinder);
 
 	/**
 	 * Merge any additional elements into the existing aggregate.
-	 * @param existing the existing value
+	 * @param existing the supplier for the existing value
 	 * @param additional the additional elements to merge
 	 * @return the merged result
 	 */
-	protected abstract T merge(T existing, T additional);
+	protected abstract T merge(Supplier<T> existing, T additional);
 
 	/**
 	 * Return the context being used by this binder.
 	 * @return the context
 	 */
-	protected final BindContext getContext() {
+	protected final Context getContext() {
 		return this.context;
 	}
 
 	/**
 	 * Internal class used to supply the aggregate and cache the value.
-	 * @param <T> The aggregate type
+	 *
+	 * @param <T> the aggregate type
 	 */
 	protected static class AggregateSupplier<T> {
 

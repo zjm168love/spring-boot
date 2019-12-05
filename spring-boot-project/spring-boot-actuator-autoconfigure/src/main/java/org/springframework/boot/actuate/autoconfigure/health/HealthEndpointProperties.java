@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +16,10 @@
 
 package org.springframework.boot.actuate.autoconfigure.health;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -23,22 +27,51 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * Configuration properties for {@link HealthEndpoint}.
  *
  * @author Phillip Webb
+ * @since 2.0.0
  */
 @ConfigurationProperties("management.endpoint.health")
-public class HealthEndpointProperties {
+public class HealthEndpointProperties extends HealthProperties {
 
 	/**
-	 * Whether to show full health details instead of just the status when exposed over a
-	 * potentially insecure connection.
+	 * Health endpoint groups.
 	 */
-	private boolean showDetails;
+	private Map<String, Group> group = new LinkedHashMap<>();
 
-	public boolean isShowDetails() {
-		return this.showDetails;
+	public Map<String, Group> getGroup() {
+		return this.group;
 	}
 
-	public void setShowDetails(boolean showDetails) {
-		this.showDetails = showDetails;
+	/**
+	 * A health endpoint group.
+	 */
+	public static class Group extends HealthProperties {
+
+		/**
+		 * Health indicator IDs that should be included or '*' for all.
+		 */
+		private Set<String> include;
+
+		/**
+		 * Health indicator IDs that should be excluded or '*' for all.
+		 */
+		private Set<String> exclude;
+
+		public Set<String> getInclude() {
+			return this.include;
+		}
+
+		public void setInclude(Set<String> include) {
+			this.include = include;
+		}
+
+		public Set<String> getExclude() {
+			return this.exclude;
+		}
+
+		public void setExclude(Set<String> exclude) {
+			this.exclude = exclude;
+		}
+
 	}
 
 }
